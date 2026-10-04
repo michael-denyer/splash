@@ -412,6 +412,13 @@ uint32_t apple10Splits(LinearMatrix matrix, uint32_t cores) noexcept {
 // policy is independent.
 constexpr uint32_t kPaired256TilesPerCore = 8;
 constexpr uint32_t kPaired256WaveGroupsPerCore = 4;
+// A 20-core Apple10 GPU (M5 Pro) runs these two one-lane projections of the
+// 27B faster on their full N256 grids than on the balanced groups: tune-kernels
+// measured 17% less GPU time on each. The full grids are unmeasured at other
+// core counts, which keep the general rules.
+constexpr uint32_t kMeasuredFullGridCores = 20;
+constexpr LinearMatrix kFullGridGateUp{17408, 5120};
+constexpr LinearMatrix kFullGridPlain{16640, 5120};
 
 std::optional<LinearConfig> apple10OneLaneConfig(LinearWorkload w, uint32_t cores) {
   // validate() requires outputSize % 256 == 0, so every tile width divides it.
@@ -421,12 +428,12 @@ std::optional<LinearConfig> apple10OneLaneConfig(LinearWorkload w, uint32_t core
     return LinearConfig{LinearTile::Paired256,
                         std::min(tiles256, kPaired256WaveGroupsPerCore * cores),
                         LinearSimdgroups::Four};
-  // tune-kernels on a 20-core M5 Pro with the 27B legacy package chose the
-  // full grid for gate/up (68 tiles) and for the plain 16640 x 5120 projection
-  // (65 paired tiles): 17% less GPU time on each key, 10% on the decode cycle.
-  if (w.epilogue == LinearEpilogue::GateUp) return LinearConfig{LinearTile::N256, tiles256};
-  if (w.epilogue == LinearEpilogue::None && n == 16640)
-    return LinearConfig{LinearTile::Paired256, tiles256, LinearSimdgroups::Four};
+  if (cores == kMeasuredFullGridCores) {
+    if (w.epilogue == LinearEpilogue::GateUp && w.matrix == kFullGridGateUp)
+      return LinearConfig{LinearTile::N256, tiles256};
+    if (w.epilogue == LinearEpilogue::None && w.matrix == kFullGridPlain)
+      return LinearConfig{LinearTile::Paired256, tiles256, LinearSimdgroups::Four};
+  }
   return std::nullopt;
 }
 

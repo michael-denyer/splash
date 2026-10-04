@@ -110,7 +110,9 @@ uint32_t expectedApple10Splits(uint32_t cores, LinearMatrix matrix) {
   return selected;
 }
 
-// Apple10 one-lane MPP rule: paired N256 from eight tiles per core.
+// Apple10 one-lane MPP rule: paired N256 from eight tiles per core, and on 20
+// cores the full N256 grids measured for the 27B's gate/up and 16640-wide
+// projections.
 std::optional<LinearConfig> expectedOneLane(uint32_t cores,
                                             LinearMatrix matrix, LinearEpilogue epilogue) {
   const uint32_t n = matrix.outputSize;
@@ -119,6 +121,10 @@ std::optional<LinearConfig> expectedOneLane(uint32_t cores,
     return LinearConfig{LinearTile::Paired256,
                         std::min(tiles256, 4 * cores),
                         LinearSimdgroups::Four};
+  if (cores == 20 && epilogue == LinearEpilogue::GateUp && matrix == LinearMatrix{17408, 5120})
+    return LinearConfig{LinearTile::N256, tiles256};
+  if (cores == 20 && epilogue == LinearEpilogue::None && matrix == LinearMatrix{16640, 5120})
+    return LinearConfig{LinearTile::Paired256, tiles256, LinearSimdgroups::Four};
   return std::nullopt;
 }
 
@@ -336,12 +342,12 @@ void baselinePlans() {
   };
   const LinearWorkload gateUp{{17408, 5120}, 8, LinearPhase::Decode, LinearEpilogue::GateUp};
   require(configured(10, 16, gateUp) == LinearConfig{LinearTile::N256, 36} &&
-              configured(10, 20, gateUp) == LinearConfig{LinearTile::N256, 48} &&
+              configured(10, 20, gateUp) == LinearConfig{LinearTile::N256, 68} &&
               configured(9, 40, gateUp) == LinearConfig{LinearTile::Simdgroup, 0, LinearSimdgroups::Four, 2} &&
               // Unknown counts use the same intermediate estimate on both families.
               configured(10, 0, gateUp) == configured(10, 32, gateUp) &&
               configured(9, 0, gateUp) == configured(9, 32, gateUp),
-          "fused gate/up grid does not follow the balanced two-tile rule");
+          "fused gate/up grid anchors changed");
   // Apple9 matrix K splits cover all decode widths; broad plain projections
   // retain their old multi-lane grids.
   require(configured(9, 16, gateUp) == LinearConfig{LinearTile::Simdgroup, 0, LinearSimdgroups::Four, 1} &&
@@ -411,10 +417,12 @@ void baselinePlans() {
               configured(10, 20, {{6144, 2048}, 32, LinearPhase::Decode, LinearEpilogue::GateUp}) ==
                   LinearConfig{LinearTile::N256, 24},
           "one-lane fallbacks or multi-lane rules changed");
-  // Balanced two-tile groups above one wave: 130 paired tiles keep three
-  // groups per core on 20 cores and one full wave of longer chains on 16; 98
-  // tiles land on 60 and 50 groups; the M16 grid holds to five per core.
-  require(configured(10, 20, {{16640, 5120}, 8}) == LinearConfig{LinearTile::Paired128, 70} &&
+  // Balanced two-tile groups above one wave: on 16 cores 130 paired tiles keep
+  // one full wave of longer chains; on 20 the projection takes the measured
+  // full grid of 65 paired N256 tiles instead; 98 tiles land on 60 and 50
+  // groups; the M16 grid holds to five per core.
+  require(configured(10, 20, {{16640, 5120}, 8}) ==
+                  LinearConfig{LinearTile::Paired256, 65, LinearSimdgroups::Four} &&
               configured(10, 16, {{16640, 5120}, 8}) == LinearConfig{LinearTile::Paired128, 64} &&
               configured(10, 20, {{12544, 2048}, 8}) == LinearConfig{LinearTile::Paired128, 60} &&
               configured(10, 16, {{12544, 2048}, 8}) == LinearConfig{LinearTile::Paired128, 50} &&
