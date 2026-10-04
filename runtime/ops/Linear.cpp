@@ -421,6 +421,12 @@ std::optional<LinearConfig> apple10OneLaneConfig(LinearWorkload w, uint32_t core
     return LinearConfig{LinearTile::Paired256,
                         std::min(tiles256, kPaired256WaveGroupsPerCore * cores),
                         LinearSimdgroups::Four};
+  // tune-kernels on a 20-core M5 Pro with the 27B legacy package chose the
+  // full grid for gate/up (68 tiles) and for the plain 16640 x 5120 projection
+  // (65 paired tiles): 17% less GPU time on each key, 10% on the decode cycle.
+  if (w.epilogue == LinearEpilogue::GateUp) return LinearConfig{LinearTile::N256, tiles256};
+  if (w.epilogue == LinearEpilogue::None && n == 16640)
+    return LinearConfig{LinearTile::Paired256, tiles256, LinearSimdgroups::Four};
   return std::nullopt;
 }
 
