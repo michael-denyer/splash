@@ -684,6 +684,7 @@ def request(
     return_progress=False,
     score_tokens=(),
     generation_prompt_tokens=0,
+    shared_prefix_tokens=0,
 ):
     """A request whose deadline is `deadline` seconds from now."""
     frame = native_peer.request_frame(
@@ -701,6 +702,7 @@ def request(
         if return_progress
         else wire.RequestFlag(0),
         generation_prompt_tokens=generation_prompt_tokens,
+        shared_prefix_tokens=shared_prefix_tokens,
     )
     return engine_runtime.GenerationRequest(
         frame, time.monotonic() + deadline, mask_provider, image_owner

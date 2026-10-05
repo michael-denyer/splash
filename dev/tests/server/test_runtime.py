@@ -402,9 +402,10 @@ class RuntimeTests(unittest.TestCase):
             process_factory=factory, eager_start=True
         )
         self.addCleanup(runtime.close)
-        runtime.submit(request(10, generation_prompt_tokens=1))
+        runtime.submit(request(10, generation_prompt_tokens=1, shared_prefix_tokens=2))
         frame = factory.processes[0].stdin.wait_for(wire.RequestFrame)[0]
         self.assertEqual(frame.generation_prompt_tokens, 1)
+        self.assertEqual(frame.shared_prefix_tokens, 2)
 
     def test_score_request_passes_slots_and_returns_option_logits(self):
         factory = FakeFactory()

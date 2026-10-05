@@ -68,7 +68,8 @@ constexpr size_t seed = minP + 4;
 constexpr size_t scoreCount = seed + 8;
 constexpr size_t generationPrompt = scoreCount + 4;
 constexpr size_t flags = generationPrompt + 4;
-static_assert(flags + 4 == kRequestFixedBytes);
+constexpr size_t sharedPrefix = flags + 4;
+static_assert(sharedPrefix + 4 == kRequestFixedBytes);
 } // namespace request_offset
 
 uint32_t loadU32(const std::vector<uint8_t> &bytes, size_t offset) {
@@ -172,6 +173,7 @@ RequestFrame exampleRequest() {
   request.sampling.seed = 0xfedcba9876543210ULL;
   request.constraint = ConstraintMode::TokenMask;
   request.generationPromptTokens = 2;
+  request.sharedPrefixTokens = 3;
   return request;
 }
 
@@ -707,6 +709,9 @@ void testPromptAndImageSpanRejections() {
   RequestFrame wholePrompt = exampleRequest();
   wholePrompt.generationPromptTokens = wholePrompt.promptTokens.size();
   expectRequestIssue(test, wholePrompt, IssueCode::InvalidCount);
+  RequestFrame beyondPrompt = exampleRequest();
+  beyondPrompt.sharedPrefixTokens = beyondPrompt.promptTokens.size() + 1;
+  expectRequestIssue(test, beyondPrompt, IssueCode::InvalidCount);
 
   const RequestFrame image = exampleImageRequest();
   auto withSpan = [&](auto change) {

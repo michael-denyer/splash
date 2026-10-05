@@ -114,6 +114,9 @@ class Job:
     # when unknown.
     generation_prompt_tokens: int = 0
     flags: wire.RequestFlag = wire.RequestFlag(0)
+    # Leading prompt tokens that later requests are expected to share (the
+    # system prompt and tools); zero when unknown.
+    shared_prefix_tokens: int = 0
     # The request asked for more output than the context leaves, and
     # max_new_tokens was lowered to what it leaves.
     output_clamped_to_context: bool = False
@@ -605,6 +608,7 @@ class NativeBackend:
             score_tokens=job.score_tokens,
             generation_prompt_tokens=job.generation_prompt_tokens,
             flags=job.flags,
+            shared_prefix_tokens=job.shared_prefix_tokens,
         )
         return engine_runtime.GenerationRequest(
             frame, job.deadline, self._mask_provider(job), job.image_owner

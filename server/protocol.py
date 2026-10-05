@@ -15,7 +15,7 @@ from dataclasses import dataclass, fields
 from enum import IntEnum, IntFlag
 from typing import TypeAlias
 
-PROTOCOL_VERSION = 8
+PROTOCOL_VERSION = 9
 # A frame is its header, the magic, the protocol version, the frame type and
 # the payload length, then the payload.
 FRAME_HEADER_BYTES = 16
@@ -44,7 +44,7 @@ _MAGIC = b"SPLH"
 _HEADER = struct.Struct("<4sHHQ")
 # Replay can update the integer deadlines without decoding sampling floats.
 _REQUEST_HEAD = struct.Struct("<QBBQQ")
-_REQUEST = struct.Struct(_REQUEST_HEAD.format + "IIIffIffffQIII")
+_REQUEST = struct.Struct(_REQUEST_HEAD.format + "IIIffIffffQIIII")
 _IMAGE_SPAN = struct.Struct("<IIIIQQ")
 _CANCEL = struct.Struct("<Q")
 _MASK_RESPONSE = struct.Struct("<QQI")
@@ -64,7 +64,7 @@ assert (
     and sys.byteorder == "little"
 )
 assert _HEADER.size == FRAME_HEADER_BYTES
-assert _REQUEST.size == 86
+assert _REQUEST.size == 90
 assert _IMAGE_SPAN.size == 32
 assert _READY.size == 9
 assert _START.size == 16
@@ -258,6 +258,10 @@ class RequestFrame:
     # when unknown. It must leave at least one prompt token.
     generation_prompt_tokens: int
     flags: RequestFlag
+    # Leading prompt tokens that later requests are expected to share, such
+    # as the chat template's system prompt and tools; zero when unknown. It
+    # must not exceed the prompt.
+    shared_prefix_tokens: int
 
 
 @dataclass(slots=True, frozen=True)
@@ -642,6 +646,9 @@ def _validated_request(
         generation = _u32(request.generation_prompt_tokens, "generation prompt tokens")
         if generation >= len(prompt):
             raise ValueError("generation prompt must leave a prompt token")
+        shared = _u32(request.shared_prefix_tokens, "shared prefix tokens")
+        if shared > len(prompt):
+            raise ValueError("shared prefix must lie within the prompt")
         if scores and (request.image_spans or request.image_pixels):
             raise ValueError("score requests are text-only")
         if scores and (
@@ -749,6 +756,7 @@ def _request_frame(request: RequestFrame) -> bytearray:
         len(request.score_tokens),
         request.generation_prompt_tokens,
         request.flags,
+        request.shared_prefix_tokens,
     )
     for index, span in enumerate(request.image_spans):
         _IMAGE_SPAN.pack_into(

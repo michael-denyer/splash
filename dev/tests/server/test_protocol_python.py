@@ -34,6 +34,7 @@ REQUEST_FIELDS = (
     "score_count",
     "generation_prompt_tokens",
     "flags",
+    "shared_prefix_tokens",
 )
 assert len(REQUEST_FIELDS) == len(p._REQUEST.format) - 1
 OFFSET = dict(
@@ -65,6 +66,7 @@ def example_request():
         seed=0xFEDCBA9876543210,
         constraint=p.ConstraintMode.TOKEN_MASK,
         generation_prompt_tokens=2,
+        shared_prefix_tokens=3,
     )
 
 
@@ -414,6 +416,7 @@ class ProtocolPythonTests(unittest.TestCase):
                 len(request.score_tokens),
                 request.generation_prompt_tokens,
                 int(request.flags),
+                request.shared_prefix_tokens,
             )
             + struct.pack(f"<{len(request.prompt_tokens)}I", *request.prompt_tokens)
             + struct.pack(p._IMAGE_SPAN.format, *astuple(span))
@@ -578,9 +581,13 @@ class ProtocolPythonTests(unittest.TestCase):
         )
         self.assertEqual(
             struct.unpack_from(
-                "<II", wire, p.FRAME_HEADER_BYTES + OFFSET["generation_prompt_tokens"]
+                "<III", wire, p.FRAME_HEADER_BYTES + OFFSET["generation_prompt_tokens"]
             ),
-            (request.generation_prompt_tokens, request.flags),
+            (
+                request.generation_prompt_tokens,
+                request.flags,
+                request.shared_prefix_tokens,
+            ),
         )
         self.assertEqual(
             struct.unpack_from(
@@ -619,6 +626,21 @@ class ProtocolPythonTests(unittest.TestCase):
                     ),
                 )
                 self.assertEqual(issue.request_id, request.request_id)
+
+    def test_shared_prefix_must_lie_within_the_prompt(self):
+        request = example_request()
+        for tokens in (len(request.prompt_tokens) + 1, 0xFFFFFFFF):
+            with self.subTest(tokens=tokens):
+                issue = self.assert_protocol_error(
+                    p.FailureClass.REQUEST_ERROR,
+                    p.IssueCode.INVALID_COUNT,
+                    lambda tokens=tokens: p.serialize_message(
+                        replace(request, shared_prefix_tokens=tokens)
+                    ),
+                )
+                self.assertEqual(issue.request_id, request.request_id)
+        whole = replace(request, shared_prefix_tokens=len(request.prompt_tokens))
+        self.assertEqual(decode_client(p.serialize_message(whole)), whole)
 
     def test_request_flags_follow_the_generation_prompt(self):
         request = example_ignore_eos_request()

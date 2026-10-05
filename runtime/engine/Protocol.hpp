@@ -18,7 +18,7 @@
 // pins the bytes both sides agree on.
 namespace splash::protocol {
 
-inline constexpr uint16_t kProtocolVersion = 8;
+inline constexpr uint16_t kProtocolVersion = 9;
 // A frame is its header, the magic "SPLH", the u16 protocol version, the
 // u16 FrameType and the u64 payload length, then the payload.
 inline constexpr size_t kFrameHeaderBytes = 16;
@@ -130,9 +130,10 @@ validateLimits(const ProtocolLimits &limits);
 //   74 u32 score token count
 //   78 u32 generationPromptTokens
 //   82 u32 flags
+//   86 u32 sharedPrefixTokens
 // then the prompt tokens, the 32-byte image spans, the image pixels and the
 // score tokens.
-inline constexpr uint64_t kRequestFixedBytes = 86;
+inline constexpr uint64_t kRequestFixedBytes = 90;
 
 // The request flags word holds the RequestFlag bits and this one, which asks
 // for PromptProgressEvents while the prompt prefills.
@@ -169,6 +170,10 @@ struct RequestFrame {
   uint32_t generationPromptTokens = 0;
   // RequestFlag bits and kReturnProgressFlag.
   uint32_t flags = 0;
+  // Leading prompt tokens that later requests are expected to share, such as
+  // the chat template's system prompt and tools; zero when unknown. It must
+  // not exceed the prompt.
+  uint32_t sharedPrefixTokens = 0;
 
   bool operator==(const RequestFrame &) const = default;
 };

@@ -953,6 +953,12 @@ DraftContextPlan Engine::configureDraftStatePlan(Request &active,
   }
   if (junctionBoundary >= stateBoundary + kMinimumJunctionGain)
     addStateBoundary(active, stateBoundary, junctionBoundary, false);
+  // A prefix other requests will share is a junction they have not reached
+  // yet: keeping its state now spares the first of them recomputing it.
+  addStateBoundary(active, stateBoundary,
+                   active.request.sharedPrefixTokens / KvCache::pageTokens *
+                       KvCache::pageTokens,
+                   false);
   addStateBoundary(active, stateBoundary, latestReplayBoundary,
                    latestReplayBoundary != promptReplayBoundary(active));
   // A resumed lane below its prompt's replay point lost that state; it
