@@ -218,6 +218,7 @@ def request(
     return_progress=False,
     score_tokens=(),
     generation_prompt_tokens=0,
+    shared_prefix_tokens=0,
 ):
     """A request whose deadline is `deadline` seconds from now."""
     frame = native_peer.request_frame(
@@ -233,6 +234,7 @@ def request(
         return_progress=return_progress,
         score_tokens=score_tokens,
         generation_prompt_tokens=generation_prompt_tokens,
+        shared_prefix_tokens=shared_prefix_tokens,
     )
     return engine_runtime.GenerationRequest(
         frame, time.monotonic() + deadline, mask_provider, image_owner
@@ -612,9 +614,10 @@ class RuntimeTests(unittest.TestCase):
         factory = FakeFactory()
         runtime = engine_runtime.MultiplexedRuntime(process_factory=factory)
         self.addCleanup(runtime.close)
-        runtime.submit(request(10, generation_prompt_tokens=1))
+        runtime.submit(request(10, generation_prompt_tokens=1, shared_prefix_tokens=2))
         frame = factory.processes[0].stdin.wait_for(wire.RequestFrame)[0]
         self.assertEqual(frame.generation_prompt_tokens, 1)
+        self.assertEqual(frame.shared_prefix_tokens, 2)
 
     def test_score_request_passes_slots_and_returns_option_logits(self):
         factory = FakeFactory()

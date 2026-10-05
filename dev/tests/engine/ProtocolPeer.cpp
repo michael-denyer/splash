@@ -100,6 +100,7 @@ FrameType write(Writer &out, const RequestFrame &request) {
   out.u32(static_cast<uint32_t>(request.scoreTokens.size()));
   out.u32(request.generationPromptTokens);
   out.u32(request.flags);
+  out.u32(request.sharedPrefixTokens);
   out.words(request.promptTokens);
   for (const ImageSpan &span : request.imageSpans) {
     out.u32(span.offset);

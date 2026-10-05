@@ -457,6 +457,33 @@ void testGenerationPromptBoundsTheReplayState() {
           "the replay state did not end before the generation prompt");
 }
 
+// The request's shared prefix reaches the engine: the next request with
+// another suffix resumes from the state kept within it.
+void testSharedPrefixKeepsAState() {
+  engine::NativeLoopConfig config;
+  config.engine.maxContext = 1024;
+  LoopFixture fixture(config);
+  engine::NativeRuntime &loop = fixture.loop;
+  fixture.clockStep = 0.25;
+  loop.announceReady();
+  for (uint64_t id : {1, 2}) {
+    auto input = request(id);
+    input.sharedPrefixTokens = 40;
+    if (id == 2)
+      std::fill(input.promptTokens.begin() + 40, input.promptTokens.end(), 500);
+    require(loop.receive(protocol::peer::serialize(input)),
+            "shared prefix request wire failed");
+    runUntilIdle(loop);
+  }
+  std::vector<uint32_t> matched;
+  for (const auto &message : fixture.events()) {
+    if (const auto *start = std::get_if<protocol::StartEvent>(&message))
+      matched.push_back(start->matchedPromptTokens);
+  }
+  require(matched == std::vector<uint32_t>{0, 32},
+          "the next request did not resume within the shared prefix");
+}
+
 // A request's flags reach the model with the rest of its request.
 void testRequestFlagsReachTheModel() {
   engine::NativeLoopConfig config;
@@ -1596,6 +1623,7 @@ int main() {
   try {
     testWireLifecycleAndCacheHit();
     testGenerationPromptBoundsTheReplayState();
+    testSharedPrefixKeepsAState();
     testRequestFlagsReachTheModel();
     testSamplingReachesTheModel();
     testPromptProgress();

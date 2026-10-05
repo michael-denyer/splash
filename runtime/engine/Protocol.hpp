@@ -18,7 +18,7 @@
 // pins the bytes both sides agree on.
 namespace splash::protocol {
 
-inline constexpr uint16_t kProtocolVersion = 7;
+inline constexpr uint16_t kProtocolVersion = 8;
 inline constexpr size_t kFrameHeaderBytes = 24;
 inline constexpr uint32_t kStatusSchemaVersion = 6;
 // Image pixels travel inside the request frame; a multi-image agent turn can
@@ -132,9 +132,10 @@ validateLimits(const ProtocolLimits &limits);
 //   75 u32 score token count
 //   79 u32 generationPromptTokens
 //   83 u32 flags
+//   87 u32 sharedPrefixTokens
 // then the prompt tokens, the 32-byte image spans, the image pixels and the
 // score tokens.
-inline constexpr uint64_t kRequestFixedBytes = 87;
+inline constexpr uint64_t kRequestFixedBytes = 91;
 
 struct RequestFrame {
   uint64_t requestId = 0;
@@ -167,6 +168,10 @@ struct RequestFrame {
   uint32_t generationPromptTokens = 0;
   // RequestFlag bits.
   uint32_t flags = 0;
+  // Leading prompt tokens that later requests are expected to share, such as
+  // the chat template's system prompt and tools; zero when unknown. It must
+  // not exceed the prompt.
+  uint32_t sharedPrefixTokens = 0;
 
   bool operator==(const RequestFrame &) const = default;
 };

@@ -1063,7 +1063,13 @@ checkout root, replays a trace.
 
 A request keeps its reusable model state at the last whole 32-token page before
 its generation prompt, the text a chat template appends to open the reply: the
-next turn may render it differently, so a follow-up resumes from there.
+next turn may render it differently, so a follow-up resumes from there. It
+keeps another at the last whole page of the leading tokens that only its system
+prompt, tools and template options determine: the frontend finds them as the
+prompt's common prefix with the same head followed by a probe turn, and sends
+their count with the request. An agent's next request with that head and other
+messages, such as another call of the same subagent, then resumes after the
+head instead of computing it again.
 
 Until the request ends, suspended or not, that replay point is in use, and so is
 the KV it restores through. When the last request using it ends, the point
