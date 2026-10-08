@@ -493,6 +493,12 @@ constexpr uint32_t kPaired256WaveGroupsPerCore = 4;
 // From two tiles per core one wave takes 0.78-1.04 times as long as the paired
 // N128 tile on 12-, 20- and 40-core GPUs; below two it loses on 40 cores.
 constexpr uint32_t kPaired256OneWaveTilesPerCore = 2;
+// A 20-core Apple10 GPU (M5 Pro) runs the 27B's one-lane gate/up faster on its
+// full N256 grid than on the balanced groups: tune-kernels measured 17% less
+// GPU time. The full grid is unmeasured at other core counts, which keep the
+// general rules.
+constexpr uint32_t kMeasuredFullGridCores = 20;
+constexpr LinearMatrix kFullGridGateUp{17408, 5120};
 
 std::optional<LinearConfig> apple10OneLaneConfig(LinearWorkload w, uint32_t cores) {
   // validate() requires outputSize % 256 == 0, so every tile width divides it.
@@ -504,6 +510,8 @@ std::optional<LinearConfig> apple10OneLaneConfig(LinearWorkload w, uint32_t core
     return LinearConfig{LinearTile::Paired256,
                         std::min(tiles256, kPaired256WaveGroupsPerCore * cores),
                         LinearSimdgroups::Four};
+  if (cores == kMeasuredFullGridCores && w.epilogue == LinearEpilogue::GateUp && w.matrix == kFullGridGateUp)
+    return LinearConfig{LinearTile::N256, tiles256};
   return std::nullopt;
 }
 

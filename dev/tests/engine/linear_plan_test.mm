@@ -104,7 +104,8 @@ uint32_t expectedApple10Splits(uint32_t cores, LinearMatrix matrix) {
 }
 
 // Apple10 one-lane MPP rule: paired N256 from two tiles per core while the
-// grid fits one wave of four groups per core, and from eight tiles per core.
+// grid fits one wave of four groups per core, and from eight tiles per core;
+// on 20 cores the full N256 grid measured for the 27B's gate/up.
 std::optional<LinearConfig> expectedOneLane(uint32_t cores,
                                             LinearMatrix matrix, LinearEpilogue epilogue) {
   const uint32_t n = matrix.outputSize;
@@ -114,6 +115,8 @@ std::optional<LinearConfig> expectedOneLane(uint32_t cores,
     return LinearConfig{LinearTile::Paired256,
                         std::min(tiles256, 4 * cores),
                         LinearSimdgroups::Four};
+  if (cores == 20 && epilogue == LinearEpilogue::GateUp && matrix == LinearMatrix{17408, 5120})
+    return LinearConfig{LinearTile::N256, tiles256};
   return std::nullopt;
 }
 
@@ -331,12 +334,12 @@ void baselinePlans() {
   };
   const LinearWorkload gateUp{{17408, 5120}, 8, LinearPhase::Decode, LinearEpilogue::GateUp};
   require(configured(10, 16, gateUp) == LinearConfig{LinearTile::N256, 36} &&
-              configured(10, 20, gateUp) == LinearConfig{LinearTile::N256, 48} &&
+              configured(10, 20, gateUp) == LinearConfig{LinearTile::N256, 68} &&
               configured(9, 40, gateUp) == LinearConfig{LinearTile::Q4Register, 0, LinearSimdgroups::Four, 2} &&
               // Unknown counts use the same intermediate estimate on both families.
               configured(10, 0, gateUp) == configured(10, 32, gateUp) &&
               configured(9, 0, gateUp) == configured(9, 32, gateUp),
-          "fused gate/up grid does not follow the balanced two-tile rule");
+          "fused gate/up grid anchors changed");
   // Apple9 matrix K splits cover all decode widths; broad plain projections
   // retain their old multi-lane grids.
   require(configured(9, 16, gateUp) == LinearConfig{LinearTile::Q4Register, 0, LinearSimdgroups::Four, 1} &&
